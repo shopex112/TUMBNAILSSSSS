@@ -32,6 +32,42 @@ const DEFAULT_THUMBNAIL: GeneratedImage = {
   timestamp: Date.now()
 };
 
+const KeySelectionPortal: React.FC<{ onKeySelected: () => void }> = ({ onKeySelected }) => {
+  const handleSelectKey = async () => {
+    // According to platform guidelines, openSelectKey triggers the injection of the key.
+    // We assume success and proceed, to avoid race conditions.
+    await window.aistudio?.openSelectKey();
+    onKeySelected();
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+      <div className="w-24 h-24 glass rounded-3xl flex items-center justify-center mx-auto border border-white/20 shadow-2xl text-5xl mb-8">
+        🔑
+      </div>
+      <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">נדרש מפתח API</h1>
+      <p className="text-slate-400 text-lg mb-8 max-w-2xl">כדי להשתמש ביכולות ה-AI, עליך לבחור מפתח API של Gemini מפרויקט Google Cloud התומך בחיוב. זהו שלב חד-פעמי.</p>
+      
+      <div className="glass rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 border-indigo-500/30">
+        <button 
+          onClick={handleSelectKey}
+          className="neon-button-purple px-10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] text-white"
+        >
+          בחר מפתח API של Gemini
+        </button>
+        <a 
+          href="https://ai.google.dev/gemini-api/docs/billing" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-xs text-slate-500 hover:text-indigo-400 transition-colors underline"
+        >
+          מידע נוסף על חיוב וחשבונות
+        </a>
+      </div>
+    </div>
+  );
+};
+
 
 const App: React.FC = () => {
   const [settings, setSettings] = useState<ThumbnailSettings>({
@@ -44,6 +80,7 @@ const App: React.FC = () => {
     userPhotos: []
   });
 
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [platformSelected, setPlatformSelected] = useState(false);
   const [generationStep, setGenerationStep] = useState<'idle' | 'generating'>('idle');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -85,6 +122,17 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Check for API key once the session is established.
+    const checkApiKey = async () => {
+      if (session && window.aistudio) {
+        const keyExists = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(keyExists);
+      }
+    };
+    checkApiKey();
+  }, [session]);
+
+  useEffect(() => {
     if (session && platformSelected && !localStorage.getItem('wizardCompleted')) {
         setShowWizard(true);
     }
@@ -105,7 +153,13 @@ const App: React.FC = () => {
 
   const handleApiError = useCallback((err: any) => {
     console.error("API Error:", err);
-    showToast({ message: "אירעה שגיאת שרת. ייתכן שמכסת ה-API נוצלה.", type: 'info', icon: '🌐' });
+    let message = "אירעה שגיאת שרת. ייתכן שמכסת ה-API נוצלה.";
+    // Per platform guidelines, if the key is invalid, prompt the user to select again.
+    if (err instanceof Error && err.message.includes("Requested entity was not found.")) {
+      message = "מפתח ה-API שנבחר אינו תקין. אנא בחר מפתח חדש.";
+      setHasApiKey(false); // This will re-trigger the KeySelectionPortal
+    }
+    showToast({ message, type: 'info', icon: '🌐' });
   }, [showToast]);
 
   const showSocialToast = useCallback(() => {
@@ -357,6 +411,10 @@ const App: React.FC = () => {
 
   if (!session) {
     return <LoginPortal />;
+  }
+
+  if (!hasApiKey) {
+    return <KeySelectionPortal onKeySelected={() => setHasApiKey(true)} />;
   }
   
   if (!platformSelected) {

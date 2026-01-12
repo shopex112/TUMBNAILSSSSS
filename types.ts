@@ -1,6 +1,16 @@
 
 
-// The global window.aistudio type definition is removed as it's no longer needed with Supabase authentication.
+// FIX: Moved the AIStudio interface into `declare global` to ensure it has a single, unambiguous global definition and resolve declaration conflicts.
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio?: AIStudio;
+  }
+}
 
 export type AspectRatio = '16:9' | '9:16' | '1:1' | '4:3';
 

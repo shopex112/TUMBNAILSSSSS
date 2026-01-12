@@ -1,0 +1,5 @@
+{
+  "name": "YouTube Pro Studio",
+  "description": "AI Thumbnail & Video Studio powered by Gemini 3 Pro and Flash models.",
+  "requestFramePermissions": []
+}

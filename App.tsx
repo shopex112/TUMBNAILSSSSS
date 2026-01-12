@@ -33,11 +33,13 @@ const DEFAULT_THUMBNAIL: GeneratedImage = {
 };
 
 const KeySelectionPortal: React.FC<{ onKeySelected: () => void }> = ({ onKeySelected }) => {
-  const handleSelectKey = async () => {
-    // According to platform guidelines, openSelectKey triggers the injection of the key.
-    // We assume success and proceed, to avoid race conditions.
-    await window.aistudio?.openSelectKey();
-    onKeySelected();
+  const [apiKey, setApiKey] = useState('');
+
+  const handleSaveKey = () => {
+    if (apiKey.trim()) {
+      sessionStorage.setItem('user_provided_api_key', apiKey.trim());
+      onKeySelected();
+    }
   };
 
   return (
@@ -46,22 +48,32 @@ const KeySelectionPortal: React.FC<{ onKeySelected: () => void }> = ({ onKeySele
         🔑
       </div>
       <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">נדרש מפתח API</h1>
-      <p className="text-slate-400 text-lg mb-8 max-w-2xl">כדי להשתמש ביכולות ה-AI, עליך לבחור מפתח API של Gemini מפרויקט Google Cloud התומך בחיוב. זהו שלב חד-פעמי.</p>
+      <p className="text-slate-400 text-lg mb-8 max-w-2xl">
+        כדי להשתמש ביכולות ה-AI, אנא הדבק את מפתח ה-API שלך עבור Gemini.
+      </p>
       
-      <div className="glass rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 border-indigo-500/30">
+      <div className="glass rounded-[2rem] p-8 flex flex-col items-center justify-center gap-4 border-indigo-500/30 w-full max-w-md">
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder="הדבק את מפתח ה-API כאן"
+          className="w-full bg-slate-900/60 border border-white/10 rounded-2xl p-4 text-center text-white placeholder-slate-500 outline-none focus:border-indigo-500/50"
+        />
         <button 
-          onClick={handleSelectKey}
-          className="neon-button-purple px-10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] text-white"
+          onClick={handleSaveKey}
+          disabled={!apiKey.trim()}
+          className="w-full neon-button-purple px-10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] text-white disabled:opacity-50"
         >
-          בחר מפתח API של Gemini
+          שמור והמשך
         </button>
         <a 
-          href="https://ai.google.dev/gemini-api/docs/billing" 
+          href="https://ai.google.dev/gemini-api/docs/api-key" 
           target="_blank" 
           rel="noopener noreferrer"
           className="text-xs text-slate-500 hover:text-indigo-400 transition-colors underline"
         >
-          מידע נוסף על חיוב וחשבונות
+          איך להשיג מפתח API?
         </a>
       </div>
     </div>
@@ -122,10 +134,10 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Check for API key once the session is established.
-    const checkApiKey = async () => {
-      if (session && window.aistudio) {
-        const keyExists = await window.aistudio.hasSelectedApiKey();
+    // Check for API key in sessionStorage once the session is established.
+    const checkApiKey = () => {
+      if (session) {
+        const keyExists = !!sessionStorage.getItem('user_provided_api_key');
         setHasApiKey(keyExists);
       }
     };
@@ -153,10 +165,17 @@ const App: React.FC = () => {
 
   const handleApiError = useCallback((err: any) => {
     console.error("API Error:", err);
-    let message = "אירעה שגיאת שרת. ייתכן שמכסת ה-API נוצלה.";
-    // Per platform guidelines, if the key is invalid, prompt the user to select again.
-    if (err instanceof Error && err.message.includes("Requested entity was not found.")) {
-      message = "מפתח ה-API שנבחר אינו תקין. אנא בחר מפתח חדש.";
+    let message = "אירעה שגיאת שרת. ייתכן שמכסת ה-API נוצלה או שהמפתח שגוי.";
+    
+    const isInvalidKeyError = err instanceof Error && (
+        err.message.includes("API key not valid") || 
+        err.message.includes("provide an API key") ||
+        err.message.includes("API Key is not available")
+    );
+
+    if (isInvalidKeyError) {
+      message = "מפתח ה-API שהוזן אינו תקין. אנא הזן מפתח חדש.";
+      sessionStorage.removeItem('user_provided_api_key');
       setHasApiKey(false); // This will re-trigger the KeySelectionPortal
     }
     showToast({ message, type: 'info', icon: '🌐' });

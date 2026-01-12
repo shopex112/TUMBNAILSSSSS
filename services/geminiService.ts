@@ -18,14 +18,17 @@ export interface TextTemplate {
 }
 
 const getAiInstance = () => {
-    // Per platform guidelines, API key is injected into process.env.API_KEY
-    // after user selects it via window.aistudio.openSelectKey().
-    if (!process.env.API_KEY) {
+    // Prioritize user-provided key from sessionStorage, as requested by the user.
+    // Fallback to environment variable if not present.
+    const userApiKey = sessionStorage.getItem('user_provided_api_key');
+    const apiKey = userApiKey || process.env.API_KEY;
+
+    if (!apiKey) {
       // This error should ideally not be user-facing, as the UI should prevent calls without a key.
       // It serves as a safeguard.
-      throw new Error("API Key is not available in the environment.");
+      throw new Error("מפתח ה-API אינו זמין. אנא ספק מפתח כדי להמשיך.");
     }
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return new GoogleGenAI({ apiKey: apiKey });
 };
 
 export class GenerationService {
